@@ -30,38 +30,23 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.distinctUntilChanged
 import androidx.core.content.pm.PackageInfoCompat
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dergoogler.mmrl.ui.component.LabelItem
 import com.dergoogler.mmrl.ui.component.LabelItemDefaults
 import com.dergoogler.mmrl.ui.component.text.TextRow
 import com.ramcosta.composedestinations.annotation.Destination
 import com.ramcosta.composedestinations.annotation.RootGraph
 import com.ramcosta.composedestinations.generated.destinations.InstallScreenDestination
-import com.ramcosta.composedestinations.generated.destinations.ModuleScreenDestination
-import com.ramcosta.composedestinations.generated.destinations.SettingScreenDestination
-import com.ramcosta.composedestinations.generated.destinations.SuperUserScreenDestination
 import com.ramcosta.composedestinations.navigation.DestinationsNavigator
 import com.rifsxd.ksunext.*
 import com.rifsxd.ksunext.R
 import com.rifsxd.ksunext.ui.component.rememberConfirmDialog
-import com.rifsxd.ksunext.ui.theme.ORANGE
 import com.rifsxd.ksunext.ui.util.*
 import com.rifsxd.ksunext.ui.util.module.LatestVersionInfo
-import com.rifsxd.ksunext.ui.viewmodel.ModuleViewModel
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.util.*
 
@@ -73,34 +58,12 @@ fun HomeScreen(navigator: DestinationsNavigator) {
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(rememberTopAppBarState())
 
     val isManager = Natives.becomeManager(ksuApp.packageName)
-    val fullFeatured = isManager && !Natives.requireNewKernel() && rootAvailable()
     val ksuVersion = if (isManager) Natives.version else null
     val ksuVersionTag = if (isManager) Natives.getVersionTag() else null
 
     val context = LocalContext.current
     val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
     val developerOptionsEnabled = prefs.getBoolean("enable_developer_options", false)
-
-    val scrollState = rememberScrollState()
-    var showFab by remember { mutableStateOf(true) }
-
-    // FAB hide/show logic
-    LaunchedEffect(scrollState) {
-        var lastOffset = scrollState.value
-        snapshotFlow { scrollState.value }
-            .distinctUntilChanged()
-            .collect { currOffset ->
-                val isScrollingDown = currOffset > lastOffset + 4
-                val isScrollingUp = currOffset < lastOffset - 4
-
-                when {
-                    isScrollingDown && showFab -> showFab = false
-                    isScrollingUp && !showFab -> showFab = true
-                }
-
-                lastOffset = currOffset
-            }
-    }
 
     Scaffold(
         topBar = {
@@ -113,35 +76,13 @@ fun HomeScreen(navigator: DestinationsNavigator) {
                 scrollBehavior = scrollBehavior
             )
         },
-        floatingActionButton = {
-            AnimatedVisibility(
-                visible = showFab,
-                enter = scaleIn(
-                    animationSpec = tween(200),
-                    initialScale = 0.8f
-                ) + fadeIn(animationSpec = tween(400)),
-                exit = scaleOut(
-                    animationSpec = tween(200),
-                    targetScale = 0.8f
-                ) + fadeOut(animationSpec = tween(400))
-            ) {
-                FloatingActionButton(
-                    onClick = { navigator.navigate(SettingScreenDestination) }
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Settings,
-                        contentDescription = stringResource(R.string.settings)
-                    )
-                }
-            }
-        },
         contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)
     ) { innerPadding ->
         Column(
             modifier = Modifier
                 .padding(innerPadding)
                 .nestedScroll(scrollBehavior.nestedScrollConnection)
-                .verticalScroll(scrollState)
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -153,19 +94,15 @@ fun HomeScreen(navigator: DestinationsNavigator) {
                 navigator.navigate(InstallScreenDestination)
             }
 
-            if (fullFeatured) {
+            if (ksuVersion != null && rootAvailable()) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(IntrinsicSize.Min),
                     horizontalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    Box(modifier = Modifier.weight(1f)) {
-                        SuperuserCard(onClick = { navigator.navigate(SuperUserScreenDestination) })
-                    }
-                    Box(modifier = Modifier.weight(1f)) {
-                        ModuleCard(onClick = { navigator.navigate(ModuleScreenDestination) })
-                    }
+                    Box(modifier = Modifier.weight(1f)) { SuperuserCard() }
+                    Box(modifier = Modifier.weight(1f)) { ModuleCard() }
                 }
             }
 
@@ -176,7 +113,7 @@ fun HomeScreen(navigator: DestinationsNavigator) {
                     )
                 )
             }
-
+            
             if (ksuVersion != null && !rootAvailable()) {
                 WarningCard(
                     stringResource(id = R.string.grant_root_failed),
@@ -189,31 +126,29 @@ fun HomeScreen(navigator: DestinationsNavigator) {
                     }
                 )
             }
-
             val checkUpdate =
                 LocalContext.current.getSharedPreferences("settings", Context.MODE_PRIVATE)
                     .getBoolean("check_update", true)
             if (checkUpdate) {
                 UpdateCard()
             }
-
+            //NextCard()
             InfoCard(autoExpand = developerOptionsEnabled)
             IssueReportCard()
+            //EXperimentalCard()
             Spacer(Modifier)
         }
     }
 }
 
 @Composable
-private fun SuperuserCard(onClick: (() -> Unit)? = null) {
+private fun SuperuserCard() {
     val count = getSuperuserCount()
     ElevatedCard(
         colors = CardDefaults.elevatedCardColors(
             containerColor = MaterialTheme.colorScheme.secondaryContainer
         ),
-        modifier = Modifier
-            .height(IntrinsicSize.Min)
-            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
+        modifier = Modifier.height(IntrinsicSize.Min)
     ) {
         Box(
             modifier = Modifier
@@ -244,34 +179,13 @@ private fun SuperuserCard(onClick: (() -> Unit)? = null) {
 }
 
 @Composable
-private fun ModuleCard(onClick: (() -> Unit)? = null) {
+private fun ModuleCard() {
     val count = getModuleCount()
-    val moduleViewModel: ModuleViewModel = viewModel()
-
-    val moduleUpdateCount = moduleViewModel.moduleList.count {
-        moduleViewModel.checkUpdate(it).first.isNotEmpty()
-    }
-
-    // State machine: 0 = nothing, 1 = show "+ Update!", 2 = show "+ X"
-    var step by remember { mutableStateOf(0) }
-
-    LaunchedEffect(moduleUpdateCount) {
-        if (moduleUpdateCount > 0) {
-            step = 1
-            delay(1200) // show "+ Update!" for a moment
-            step = 2
-        } else {
-            step = 0
-        }
-    }
-
     ElevatedCard(
         colors = CardDefaults.elevatedCardColors(
             containerColor = MaterialTheme.colorScheme.secondaryContainer
         ),
-        modifier = Modifier
-            .height(IntrinsicSize.Min)
-            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
+        modifier = Modifier.height(IntrinsicSize.Min)
     ) {
         Box(
             modifier = Modifier
@@ -291,58 +205,11 @@ private fun ModuleCard(onClick: (() -> Unit)? = null) {
                     },
                     style = MaterialTheme.typography.bodySmall
                 )
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = count.toString(),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-
-                    if (moduleUpdateCount > 0) {
-                        Spacer(Modifier.width(6.dp))
-
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            // Keep the "|" static
-                            Text(
-                                text = "|",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
-
-                            Spacer(Modifier.width(4.dp))
-
-                            // Animate only the right-side text
-                            AnimatedContent(
-                                targetState = step,
-                                transitionSpec = {
-                                    slideInHorizontally { -it } + fadeIn() togetherWith
-                                            slideOutHorizontally { it } + fadeOut()
-                                },
-                                label = "UpdateAnimation"
-                            ) { target ->
-                                when (target) {
-                                    1 -> Text(
-                                        text = "Update!",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = ORANGE
-                                    )
-                                    2 -> Text(
-                                        text = buildAnnotatedString {
-                                            append(moduleUpdateCount.toString())
-                                            withStyle(SpanStyle(color = ORANGE)) {
-                                                append("*")
-                                            }
-                                        },
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
+                Text(
+                    text = count.toString(),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
             }
         }
     }
@@ -826,6 +693,7 @@ private fun InfoCard(autoExpand: Boolean = false) {
                         content = currentMountSystem().ifEmpty { stringResource(R.string.unavailable) },
                         icon = Icons.Filled.SettingsSuggest,
                     )
+                    
 
                     val suSFS = getSuSFS()
                     if (suSFS == "Supported") {
