@@ -25,6 +25,10 @@ apksign {
 android {
     namespace = "com.rifsxd.ksunext"
 
+    defaultConfig {
+        applicationId = "org.deepinrain.ksun"
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
