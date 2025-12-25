@@ -233,11 +233,9 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun BottomBar(navController: NavHostController, moduleUpdateCount: Int) {
     val navigator = navController.rememberDestinationsNavigator()
-    val isManager = Natives.becomeManager(ksuApp.packageName)
+    val isManager = Natives.isManager
     val fullFeatured = isManager && !Natives.requireNewKernel() && rootAvailable()
     val suCompatDisabled = isSuCompatDisabled()
-    val suSFS = getSuSFS()
-    val susSUMode = susfsSUS_SU_Mode()
 
     NavigationBar(
         tonalElevation = 8.dp,
