@@ -50,7 +50,7 @@ object Natives {
      * Get the UID of the current root manager.
      * @return manager UID, or 0 if unavailable.
      */
-    external fun getManagerUid(): Int
+    external fun getManagerAppid(): Int
 
     /**
      * Get a string indicating the SU hook mode enabled in kernel.
@@ -107,6 +107,20 @@ object Natives {
      */
     external fun isEnhancedSecurityEnabled(): Boolean
     external fun setEnhancedSecurityEnabled(enabled: Boolean): Boolean
+
+    /**
+     * Get the user name for the uid.
+     */
+    external fun getUserName(uid: Int): String?
+
+    /**
+     * Avc spoof can be enabled/disabled.
+     *  0: disabled
+     *  1: enabled
+     *  negative : error
+     */
+    external fun isAvcSpoofEnabled(): Boolean
+    external fun setAvcSpoofEnabled(enabled: Boolean): Boolean
 
     private const val NON_ROOT_DEFAULT_PROFILE_KEY = "$"
     private const val NOBODY_UID = 9999

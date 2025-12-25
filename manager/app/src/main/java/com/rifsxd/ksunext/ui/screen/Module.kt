@@ -877,7 +877,11 @@ fun ModuleItem(
                 }
 
                 val filterZygiskModules = Natives.isZygiskEnabled() || !module.zygiskRequired
-
+                
+                val zygiskImpl by produceState(key1 = module.id, initialValue = "") {
+                    value = withContext(Dispatchers.IO) { getZygiskImplementation() }
+                }
+                
                 LaunchedEffect(Unit) {
                     developerOptionsEnabled = prefs.getBoolean("enable_developer_options", false)
                 }
@@ -920,6 +924,24 @@ fun ModuleItem(
                                         )
                                     )
                                 }
+                                if (module.isMetaModule && !module.remove) {
+                                    LabelItem(
+                                        text = stringResource(R.string.meta_module),
+                                        style = LabelItemDefaults.style.copy(
+                                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                        )
+                                    )
+                                }
+                                if (zygiskImpl.isNotBlank() && zygiskImpl != "None" && module.name == zygiskImpl && !module.remove) {
+                                    LabelItem(
+                                        text = stringResource(R.string.zygisk),
+                                        style = LabelItemDefaults.style.copy(
+                                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                        )
+                                    )
+                                }
                                 if (!Natives.isZygiskEnabled() && module.zygiskRequired && !module.remove) {
                                     LabelItem(
                                         text = stringResource(R.string.zygisk_required),
@@ -933,8 +955,8 @@ fun ModuleItem(
                                     LabelItem(
                                         text = stringResource(R.string.module_update_available),
                                         style = LabelItemDefaults.style.copy(
-                                            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                                            contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                                            containerColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                                            contentColor = MaterialTheme.colorScheme.tertiaryContainer
                                         )
                                     )
                                 }
@@ -943,8 +965,8 @@ fun ModuleItem(
                                         LabelItem(
                                             text = stringResource(R.string.module_updated),
                                             style = LabelItemDefaults.style.copy(
-                                                containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                                                contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                                                containerColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                                                contentColor = MaterialTheme.colorScheme.tertiaryContainer
                                             )
                                         )
                                     }
@@ -1224,7 +1246,8 @@ fun ModuleItemPreview() {
         dirId = "dirId",
         size = 12345678L,
         banner = "",
-        zygiskRequired = false
+        zygiskRequired = false,
+        isMetaModule = false
     )
     ModuleItem(EmptyDestinationsNavigator, module, "", {}, {}, {}, {}, {}, false, {})
 }

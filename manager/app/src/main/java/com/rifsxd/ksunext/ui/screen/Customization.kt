@@ -23,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.content.edit
 import androidx.lifecycle.compose.dropUnlessResumed
+import com.rifsxd.ksunext.ui.MainActivity
 import com.maxkeppeker.sheets.core.models.base.Header
 import com.maxkeppeker.sheets.core.models.base.rememberUseCaseState
 import com.maxkeppeler.sheets.list.ListDialog
@@ -37,6 +38,7 @@ import com.rifsxd.ksunext.R
 import com.rifsxd.ksunext.ksuApp
 import com.rifsxd.ksunext.ui.component.SwitchItem
 import com.rifsxd.ksunext.ui.component.rememberCustomDialog
+import com.rifsxd.ksunext.ui.util.restartActivity
 import com.rifsxd.ksunext.ui.util.LocalSnackbarHost
 import com.rifsxd.ksunext.ui.util.LocaleHelper
 
@@ -261,46 +263,16 @@ fun CustomizationScreen(navigator: DestinationsNavigator) {
                     prefs.getBoolean("enable_amoled", false)
                 )
             }
-            var showRestartDialog by remember { mutableStateOf(false) }
             if (isSystemInDarkTheme()) {
+                val activity = LocalContext.current as? MainActivity
                 SwitchItem(
                     icon = Icons.Filled.Contrast,
                     title = stringResource(id = R.string.settings_amoled_mode),
                     summary = stringResource(id = R.string.settings_amoled_mode_summary),
                     checked = enableAmoled
                 ) { checked ->
-                    prefs.edit { putBoolean("enable_amoled", checked) }
+                    activity?.setAmoledMode(checked)
                     enableAmoled = checked
-                    showRestartDialog = true
-                }
-                if (showRestartDialog) {
-                    AlertDialog(
-                        onDismissRequest = { showRestartDialog = false },
-                        title = { Text(
-                            text = stringResource(R.string.restart_required),
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.SemiBold
-                        ) },
-                        text = { Text(stringResource(R.string.restart_app_message)) },
-                        confirmButton = {
-                            TextButton(onClick = {
-                                showRestartDialog = false
-                                // Restart the app
-                                val packageManager = context.packageManager
-                                val intent = packageManager.getLaunchIntentForPackage(context.packageName)
-                                intent?.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
-                                context.startActivity(intent)
-                                Runtime.getRuntime().exit(0)
-                            }) {
-                                Text(stringResource(R.string.restart_app))
-                            }
-                        },
-                        dismissButton = {
-                            TextButton(onClick = { showRestartDialog = false }) {
-                                Text(stringResource(R.string.later))
-                            }
-                        }
-                    )
                 }
             }
         }

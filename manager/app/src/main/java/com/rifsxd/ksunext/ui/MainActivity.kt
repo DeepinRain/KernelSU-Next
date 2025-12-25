@@ -5,11 +5,18 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.*
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -32,6 +39,9 @@ import com.ramcosta.composedestinations.generated.NavGraphs
 import com.ramcosta.composedestinations.generated.destinations.ExecuteModuleActionScreenDestination
 import com.ramcosta.composedestinations.generated.destinations.FlashScreenDestination
 import com.ramcosta.composedestinations.utils.isRouteOnBackStackAsState
+import com.ramcosta.composedestinations.generated.destinations.ModuleScreenDestination
+import com.ramcosta.composedestinations.generated.destinations.SuperUserScreenDestination
+import com.ramcosta.composedestinations.generated.destinations.SettingScreenDestination
 import com.ramcosta.composedestinations.utils.rememberDestinationsNavigator
 import com.rifsxd.ksunext.Natives
 import com.rifsxd.ksunext.ksuApp
@@ -39,66 +49,45 @@ import com.rifsxd.ksunext.ui.screen.BottomBarDestination
 import com.rifsxd.ksunext.ui.screen.FlashIt
 import com.rifsxd.ksunext.ui.theme.KernelSUTheme
 import com.rifsxd.ksunext.ui.util.*
-import com.rifsxd.ksunext.ui.viewmodel.ModuleViewModel
-import com.rifsxd.ksunext.ui.viewmodel.SuperUserViewModel
 
 class MainActivity : ComponentActivity() {
+
+    var zipUri by mutableStateOf<ArrayList<Uri>?>(null)
+    var navigateLoc by mutableStateOf("")
+    var amoledModeState = mutableStateOf(false)
+    private val handler = Handler(Looper.getMainLooper())
 
     override fun attachBaseContext(newBase: Context?) {
         super.attachBaseContext(newBase?.let { LocaleHelper.applyLanguage(it) })
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        
+        super.onCreate(savedInstanceState)
 
-        // Enable edge to edge
         enableEdgeToEdge()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             window.isNavigationBarContrastEnforced = false
         }
 
-        super.onCreate(savedInstanceState)
+        try {
+            val prefsInit = getSharedPreferences("settings", MODE_PRIVATE)
+            amoledModeState.value = prefsInit.getBoolean("enable_amoled", false)
+        } catch (_: Exception) {}
 
         val isManager = Natives.isManager
         if (isManager) install()
 
-        val zipUri: Uri? = when (intent?.action) {
-            Intent.ACTION_VIEW, Intent.ACTION_SEND -> {
-                val uri = intent.data ?: intent.getParcelableExtra(Intent.EXTRA_STREAM)
-                uri?.let {
-                    val name = when (it.scheme) {
-                        "file" -> it.lastPathSegment ?: ""
-                        "content" -> {
-                            contentResolver.query(it, null, null, null, null)?.use { cursor ->
-                                val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
-                                if (cursor.moveToFirst() && nameIndex != -1) {
-                                    cursor.getString(nameIndex)
-                                } else {
-                                    it.lastPathSegment ?: ""
-                                }
-                            } ?: (it.lastPathSegment ?: "")
-                        }
-                        else -> it.lastPathSegment ?: ""
-                    }
-                    if (name.lowercase().endsWith(".zip")) it else null
-                }
-            }
-            else -> null
+        if ((intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) != 0) {
+            intent.extras?.clear()
+            intent = null
         }
 
+        if(intent != null)
+            handleIntent(intent)
+
         setContent {
-            // Read AMOLED mode preference
-            val prefs = getSharedPreferences("settings", MODE_PRIVATE)
-            val amoledMode = prefs.getBoolean("enable_amoled", false)
-
-            val moduleViewModel: ModuleViewModel = viewModel()
-            val superUserViewModel: SuperUserViewModel = viewModel()
-            val moduleUpdateCount = moduleViewModel.moduleList.count { 
-                moduleViewModel.checkUpdate(it).first.isNotEmpty()
-            }
-
-            KernelSUTheme (
-                amoledMode = amoledMode
-            ) {
+            KernelSUTheme(amoledMode = amoledModeState.value) {
                 val navController = rememberNavController()
                 val snackBarHostState = remember { SnackbarHostState() }
                 val currentDestination = navController.currentBackStackEntryAsState().value?.destination
@@ -107,24 +96,30 @@ class MainActivity : ComponentActivity() {
                 }
                 val navigator = navController.rememberDestinationsNavigator()
 
-                LaunchedEffect(zipUri) {
-                    if (zipUri != null) {
+                LaunchedEffect(zipUri, navigateLoc) {
+                    if (!zipUri.isNullOrEmpty()) {
                         navigator.navigate(
                             FlashScreenDestination(
-                                FlashIt.FlashModules(listOf(zipUri)),
-                                finishIntent = true
+                                flashIt = FlashIt.FlashModules(zipUri!!)
                             )
                         )
-                    }
-                }
-
-                LaunchedEffect(Unit) {
-                    if (superUserViewModel.appList.isEmpty()) {
-                        superUserViewModel.fetchAppList()
+                        zipUri = null
                     }
 
-                    if (moduleViewModel.moduleList.isEmpty()) {
-                        moduleViewModel.fetchModuleList()
+                    if(zipUri.isNullOrEmpty() && navigateLoc != "")
+                    {
+                        when(navigateLoc) {
+                            "superuser" -> {
+                                navigator.navigate(SuperUserScreenDestination)
+                            }
+                            "modules" -> {
+                                navigator.navigate(ModuleScreenDestination)
+                            }
+                            "settings" -> {
+                                navigator.navigate(SettingScreenDestination)
+                            }
+                        }
+                        navigateLoc = ""
                     }
                 }
 
@@ -150,82 +145,101 @@ class MainActivity : ComponentActivity() {
                         LocalSnackbarHost provides snackBarHostState,
                     ) {
                         DestinationsNavHost(
-                            modifier = Modifier.padding(innerPadding),
+                            modifier = Modifier
+                                .padding(innerPadding)
+                                .windowInsetsPadding(WindowInsets.navigationBars),
                             navGraph = NavGraphs.root,
                             navController = navController,
                             defaultTransitions = object : NavHostAnimatedDestinationStyle() {
+                                // smooth forward enter
                                 override val enterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition = {
-                                    if (targetState.destination.route in bottomBarRoutes && initialState.destination.route in bottomBarRoutes) {
-                                        // Slide left/right between bottom bar destinations
-                                        val fromIndex = BottomBarDestination.entries.indexOfFirst { it.direction.route == initialState.destination.route }
-                                        val toIndex = BottomBarDestination.entries.indexOfFirst { it.direction.route == targetState.destination.route }
-                                        if (toIndex > fromIndex) {
-                                            slideInHorizontally(initialOffsetX = { it })
-                                        } else {
-                                            slideInHorizontally(initialOffsetX = { -it })
-                                        }
-                                    } else if (targetState.destination.route !in bottomBarRoutes) {
-                                        // Slide in and fade in for detail screens
-                                        slideInHorizontally(
-                                            initialOffsetX = { it },
-                                            animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
-                                        ) + fadeIn(animationSpec = tween(400))
-                                    } else {
-                                        // Default fade in
-                                        fadeIn(animationSpec = tween(340))
-                                    }
+                                    slideInHorizontally(
+                                        initialOffsetX = { it }, // slide from right
+                                        animationSpec = tween(
+                                            durationMillis = 300,
+                                            easing = FastOutSlowInEasing
+                                        )
+                                    ) + fadeIn(
+                                        animationSpec = tween(300, easing = LinearOutSlowInEasing)
+                                    )
                                 }
 
+                                // smooth forward exit
                                 override val exitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition = {
-                                    if (initialState.destination.route in bottomBarRoutes && targetState.destination.route in bottomBarRoutes) {
-                                        // Slide left/right between bottom bar destinations
-                                        val fromIndex = BottomBarDestination.entries.indexOfFirst { it.direction.route == initialState.destination.route }
-                                        val toIndex = BottomBarDestination.entries.indexOfFirst { it.direction.route == targetState.destination.route }
-                                        if (toIndex > fromIndex) {
-                                            slideOutHorizontally(targetOffsetX = { -it })
-                                        } else {
-                                            slideOutHorizontally(targetOffsetX = { it })
-                                        }
-                                    } else if (initialState.destination.route in bottomBarRoutes && targetState.destination.route !in bottomBarRoutes) {
-                                        // Slide out and fade out for main->detail
-                                        slideOutHorizontally(
-                                            targetOffsetX = { -it / 2 },
-                                            animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
-                                        ) + fadeOut(animationSpec = tween(400))
-                                    } else {
-                                        // Default fade out
-                                        fadeOut(animationSpec = tween(340))
-                                    }
+                                    slideOutHorizontally(
+                                        targetOffsetX = { -it / 3 }, // subtle slide left
+                                        animationSpec = tween(
+                                            durationMillis = 300,
+                                            easing = FastOutSlowInEasing
+                                        )
+                                    ) + fadeOut(
+                                        animationSpec = tween(250, easing = LinearOutSlowInEasing)
+                                    )
                                 }
 
+                                // pop back enter (backward navigation)
                                 override val popEnterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition = {
-                                    if (targetState.destination.route in bottomBarRoutes) {
-                                        // Slide in from left and fade in for pop to main
-                                        slideInHorizontally(
-                                            initialOffsetX = { -it / 2 },
-                                            animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
-                                        ) + fadeIn(animationSpec = tween(400))
-                                    } else {
-                                        // Pop between details: fade in
-                                        fadeIn(animationSpec = tween(340))
-                                    }
+                                    slideInHorizontally(
+                                        initialOffsetX = { -it / 3 }, // subtle from left
+                                        animationSpec = tween(
+                                            durationMillis = 280,
+                                            easing = FastOutSlowInEasing
+                                        )
+                                    ) + fadeIn(
+                                        animationSpec = tween(280, easing = LinearOutSlowInEasing)
+                                    )
                                 }
 
+                                // pop back exit
                                 override val popExitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition = {
-                                    if (initialState.destination.route !in bottomBarRoutes) {
-                                        // Scale down and fade out for detail pop
-                                        scaleOut(targetScale = 0.85f, animationSpec = spring(stiffness = Spring.StiffnessLow)) +
-                                        fadeOut(animationSpec = tween(400))
-                                    } else {
-                                        // Tab pop: fade out
-                                        fadeOut(animationSpec = tween(340))
-                                    }
+                                    slideOutHorizontally(
+                                        targetOffsetX = { it / 3 }, // subtle slide right
+                                        animationSpec = tween(
+                                            durationMillis = 280,
+                                            easing = FastOutSlowInEasing
+                                        )
+                                    ) + fadeOut(
+                                        animationSpec = tween(250, easing = LinearOutSlowInEasing)
+                                    )
                                 }
                             }
                         )
                     }
                 }
             }
+        }
+    }
+
+    fun setAmoledMode(enabled: Boolean) {
+        try {
+            val prefs = getSharedPreferences("settings", MODE_PRIVATE)
+            prefs.edit().putBoolean("enable_amoled", enabled).apply()
+        } catch (_: Exception) {}
+        amoledModeState.value = enabled
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleIntent(intent)
+        setIntent(intent)
+    }
+
+    private fun handleIntent(intent: Intent) {
+        when (intent.action) {
+            Intent.ACTION_VIEW -> {
+                zipUri =
+                    intent.data?.let { arrayListOf(it) }
+                        ?: if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            intent.getParcelableArrayListExtra("uris", Uri::class.java)
+                        } else {
+                            @Suppress("DEPRECATION")
+                            intent.getParcelableArrayListExtra("uris")
+                        }
+            }
+
+            "com.rifsxd.ksunext.ACTION_SETTINGS" -> navigateLoc = "settings"
+            "com.rifsxd.ksunext.ACTION_SUPERUSER" -> navigateLoc = "superuser"
+            "com.rifsxd.ksunext.ACTION_MODULES" -> navigateLoc = "modules"
         }
     }
 }

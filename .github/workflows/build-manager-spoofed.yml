@@ -4,19 +4,21 @@ on:
   push:
     branches: [ "next" ]
     paths:
-      - '.github/workflows/build-manager-spoofed.yml'
+      - '.github/workflows/build-manager.yml'
       - '.github/workflows/build-lkm.yml'
+      - '.github/workflows/ksud.yml'
       - 'manager/**'
       - 'kernel/**'
-      - 'userspace/ksud/**'
+      - 'userspace/**'
   pull_request:
     branches: [ "next" ]
     paths:
-      - '.github/workflows/build-manager-spoofed.yml'
+      - '.github/workflows/build-manager.yml'
       - '.github/workflows/build-lkm.yml'
+      - '.github/workflows/ksud.yml'
       - 'manager/**'
       - 'kernel/**'
-      - 'userspace/ksud/**'
+      - 'userspace/**'
   workflow_call:
   workflow_dispatch:
 
@@ -25,8 +27,11 @@ jobs:
     uses: ./.github/workflows/build-lkm.yml
     secrets: inherit
 
+  build-ksuinit:
+    uses: ./.github/workflows/ksuinit.yml
+
   build-ksud:
-    needs: build-lkm
+    needs: [build-lkm, build-ksuinit]
     strategy:
       matrix:
         include:
@@ -40,7 +45,7 @@ jobs:
       os: ${{ matrix.os }}
   
   build-ksud-extra:
-    needs: build-lkm
+    needs: [build-lkm, build-ksuinit]
     strategy:
       matrix:
         include:
@@ -87,7 +92,6 @@ jobs:
           fi
 
       - name: Write key
-        if: ${{ ( github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' )) || github.ref_type == 'tag' }}
         run: |
           if [ ! -z "${{ secrets.KEYSTORE }}" ]; then
             {

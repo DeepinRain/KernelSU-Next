@@ -45,6 +45,7 @@ import com.rifsxd.ksunext.*
 import com.rifsxd.ksunext.R
 import com.rifsxd.ksunext.ui.component.rememberConfirmDialog
 import com.rifsxd.ksunext.ui.util.*
+import com.rifsxd.ksunext.ui.util.restartActivity
 import com.rifsxd.ksunext.ui.util.module.LatestVersionInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -119,11 +120,7 @@ fun HomeScreen(navigator: DestinationsNavigator) {
                 WarningCard(
                     stringResource(id = R.string.grant_root_failed),
                     onClick = {
-                        val pm = context.packageManager
-                        val intent = pm.getLaunchIntentForPackage(context.packageName)
-                        intent?.addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                        context.startActivity(intent)
-                        Runtime.getRuntime().exit(0)
+                        restartActivity(context)
                     }
                 )
             }
@@ -450,14 +447,10 @@ private fun StatusCard(
                 .padding(24.dp), verticalAlignment = Alignment.CenterVertically) {
             when {
                 ksuVersion != null -> {
-                    val workingMode = when {
-                        lkmMode == true -> "LKM"
-                        lkmMode == false || kernelVersion.isGKI() -> "GKI2"
-                        lkmMode == null && kernelVersion.isULegacy() -> "U-LEGACY"
-                        lkmMode == null && kernelVersion.isLegacy() -> "LEGACY"
-                        lkmMode == null && kernelVersion.isGKI1() -> "GKI1"
-                        else -> "NON-STANDARD"
-                    }
+                    val workingMode = if (lkmMode == true || lkmMode == false) {
+                        val mode = if (lkmMode == true) "LKM" else "BUILT-IN"
+                        "$mode (" + kernelVersion.getKernelType() + ")"
+                    } else kernelVersion.getKernelType()
 
                     Icon(
                         imageVector = Icons.Filled.CheckCircle,
@@ -660,7 +653,7 @@ private fun InfoCard(autoExpand: Boolean = false) {
                     content = if (
                         developerOptionsEnabled
                     ) {
-                        "${managerVersion.first} (${managerVersion.second}) | UID: ${Natives.getManagerUid()}"
+                        "${managerVersion.first} (${managerVersion.second}) | UID: ${Natives.getManagerAppid()}"
                     } else {
                         "${managerVersion.first} (${managerVersion.second})"
                     },
@@ -685,10 +678,26 @@ private fun InfoCard(autoExpand: Boolean = false) {
 
                 if (ksuVersion != null) {
                     Spacer(Modifier.height(16.dp))
+                    
+                    val moduleViewModel: ModuleViewModel = viewModel()
+                    val meta = moduleViewModel.moduleList.firstOrNull {
+                        it.isMetaModule && it.enabled && !it.remove
+                    }
+
+                    val mountSystem = currentMountSystem()
+                        .ifBlank { stringResource(R.string.unavailable) }
+
+                    val content = listOfNotNull(
+                        mountSystem,
+                        meta?.name?.takeIf { it.isNotBlank() }
+                            ?: stringResource(R.string.home_not_installed),
+                        meta?.version?.takeIf { it.isNotBlank() }
+                    ).joinToString(" | ")
+
                     InfoCardItem(
                         label = stringResource(R.string.home_mount_system),
-                        content = currentMountSystem().ifEmpty { stringResource(R.string.unavailable) },
-                        icon = Icons.Filled.SettingsSuggest,
+                        content = content,
+                        icon = Icons.Filled.SettingsSuggest
                     )
                     
 

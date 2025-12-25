@@ -2,6 +2,7 @@
 
 #include <sys/prctl.h>
 #include <linux/capability.h>
+#include <pwd.h>
 
 #include <android/log.h>
 #include <cstring>
@@ -28,9 +29,9 @@ Java_com_rifsxd_ksunext_Natives_getVersion(JNIEnv *env, jobject) {
 
 extern "C"
 JNIEXPORT jint JNICALL
-Java_com_rifsxd_ksunext_Natives_getManagerUid(JNIEnv *env, jobject) {
-    uid_t manager_uid = get_manager_uid();
-    return (jint)manager_uid;
+Java_com_rifsxd_ksunext_Natives_getManagerAppid(JNIEnv *env, jobject) {
+    uid_t appid = get_manager_appid();
+    return (jint)appid;
 }
 
 extern "C"
@@ -361,4 +362,25 @@ extern "C"
 JNIEXPORT jboolean JNICALL
 Java_com_rifsxd_ksunext_Natives_setEnhancedSecurityEnabled(JNIEnv *env, jobject thiz, jboolean enabled) {
     return set_enhanced_security_enabled(enabled);
+}
+
+extern "C"
+JNIEXPORT jboolean JNICALL
+Java_com_rifsxd_ksunext_Natives_isAvcSpoofEnabled(JNIEnv *env, jobject thiz) {
+    return is_avc_spoof_enabled();
+}
+extern "C"
+JNIEXPORT jboolean JNICALL
+Java_com_rifsxd_ksunext_Natives_setAvcSpoofEnabled(JNIEnv *env, jobject thiz, jboolean enabled) {
+    return set_avc_spoof_enabled(enabled);
+}
+
+extern "C"
+JNIEXPORT jstring JNICALL
+Java_com_rifsxd_ksunext_Natives_getUserName(JNIEnv *env, jobject thiz, jint uid) {
+    struct passwd *pw = getpwuid((uid_t) uid);
+    if (pw && pw->pw_name && pw->pw_name[0] != '\0') {
+        return env->NewStringUTF(pw->pw_name);
+    }
+    return nullptr;
 }
