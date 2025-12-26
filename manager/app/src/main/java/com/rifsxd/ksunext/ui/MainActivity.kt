@@ -161,9 +161,7 @@ class MainActivity : ComponentActivity() {
                         LocalSnackbarHost provides snackBarHostState,
                     ) {
                         DestinationsNavHost(
-                            modifier = Modifier
-                                .padding(innerPadding)
-                                .windowInsetsPadding(WindowInsets.navigationBars),
+                            modifier = Modifier.padding(innerPadding)
                             navGraph = NavGraphs.root,
                             navController = navController,
                             defaultTransitions = object : NavHostAnimatedDestinationStyle() {
