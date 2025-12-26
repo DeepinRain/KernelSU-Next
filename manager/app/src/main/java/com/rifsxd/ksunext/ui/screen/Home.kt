@@ -50,6 +50,9 @@ import com.rifsxd.ksunext.ui.util.module.LatestVersionInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.*
+import com.rifsxd.ksunext.ui.viewmodel.ModuleViewModel
+import com.rifsxd.ksunext.ui.viewmodel.SuperUserViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Destination<RootGraph>(start = true)

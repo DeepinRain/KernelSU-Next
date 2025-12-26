@@ -12,8 +12,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.*
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
@@ -29,7 +27,6 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Color
@@ -49,6 +46,8 @@ import com.rifsxd.ksunext.ui.screen.BottomBarDestination
 import com.rifsxd.ksunext.ui.screen.FlashIt
 import com.rifsxd.ksunext.ui.theme.KernelSUTheme
 import com.rifsxd.ksunext.ui.util.*
+import com.rifsxd.ksunext.ui.viewmodel.ModuleViewModel
+import com.rifsxd.ksunext.ui.viewmodel.SuperUserViewModel
 
 class MainActivity : ComponentActivity() {
 
@@ -87,6 +86,12 @@ class MainActivity : ComponentActivity() {
             handleIntent(intent)
 
         setContent {
+            val moduleViewModel: ModuleViewModel = viewModel()
+            val superUserViewModel: SuperUserViewModel = viewModel()
+            val moduleUpdateCount = moduleViewModel.moduleList.count { 
+                moduleViewModel.checkUpdate(it).first.isNotEmpty()
+            }
+
             KernelSUTheme(amoledMode = amoledModeState.value) {
                 val navController = rememberNavController()
                 val snackBarHostState = remember { SnackbarHostState() }
@@ -122,6 +127,17 @@ class MainActivity : ComponentActivity() {
                         navigateLoc = ""
                     }
                 }
+
+                LaunchedEffect(Unit) {
+                    if (superUserViewModel.appList.isEmpty()) {
+                        superUserViewModel.fetchAppList()
+                    }
+
+                    if (moduleViewModel.moduleList.isEmpty()) {
+                        moduleViewModel.fetchModuleList()
+                    }
+                }
+
 
                 val showBottomBar = when (currentDestination?.route) {
                     FlashScreenDestination.route -> false // Hide for FlashScreenDestination
